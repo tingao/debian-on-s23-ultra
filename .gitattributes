@@ -1,0 +1,33 @@
+# Shell scripts must keep LF endings. Git on Windows would otherwise check them out
+# with CRLF, and a CRLF shell script fails on Linux with "Syntax error: end of file
+# unexpected", which is a confusing way to lose an hour. This is the same trap noted
+# in docs/08-gotchas.md.
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+*.kt        text eol=lf
+*.java      text eol=lf
+*.kts       text eol=lf
+*.xml       text eol=lf
+*.aidl      text eol=lf
+*.py        text eol=lf
+*.md        text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.prop      text eol=lf
+*.example   text eol=lf
+
+# The MOTD scripts and anything else installed into the chroot are shell scripts
+# with no extension, so name them explicitly.
+motd/adapted/00-server-motd.sh     text eol=lf
+motd/adapted/lib/motd-geoip.sh      text eol=lf
+motd/adapted/update-motd.d/*        text eol=lf
+payload/*                           text eol=lf
+scripts/Connect-Debian.cmd          text eol=crlf
+
+# Images are binary.
+*.png binary
+*.jpg binary
+*.webp binary

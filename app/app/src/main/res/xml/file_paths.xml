@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only thing served through the FileProvider is the bundled Shizuku APK,
+     handed to the system package installer. Nothing else needs to be reachable. -->
+<paths>
+    <cache-path name="apk" path="." />
+    <external-files-path name="rootfs" path="." />
+</paths>

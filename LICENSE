@@ -1,0 +1,41 @@
+MIT License
+
+Copyright (c) 2026 tingao
+
+This licence covers only the original work in this repository: the Android app
+source (app/), the device and host scripts, and the documentation. It is given away
+freely - use it, change it, ship it, no strings.
+
+It does NOT cover, and does not relicense, the third-party components that are
+bundled with or downloaded by this project. Those keep the licences they arrived
+with, and they are listed with their copyright and licence in NOTICE:
+
+  Root My Galaxy kernel exploit ...... Apache-2.0   (stable-launcher, ksu-helper,
+                                                     ksu-payload, mm-exec-factory,
+                                                     ksud-selected)
+  Android Debug Bridge (adb) ......... Apache-2.0   (libadb.so)
+  KernelSU Next ...................... GPL-3.0      (kernel module + ksud)
+  Shizuku ............................ Apache-2.0   (shizuku.apk)
+  Debian root filesystem ............. free software (downloaded at runtime)
+
+Nothing in this file narrows, replaces or overrides any of those licences.
+
+***
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

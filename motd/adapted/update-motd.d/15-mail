@@ -1,0 +1,13 @@
+#!/bin/sh
+printed=0
+for u in tingao root; do
+  [ -s "/var/mail/$u" ] || continue
+  if [ "$u" = "root" ]; then
+    echo "New system-alert mail for root - read it with: sudo mail -f /var/mail/root"
+  else
+    echo "New mail for $u - read it with: mail"
+  fi
+  printed=1
+done
+[ "$printed" = 1 ] && echo ""
+exit 0

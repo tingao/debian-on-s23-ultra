@@ -1,0 +1,33 @@
+#!/bin/sh
+. /usr/local/lib/motd-geoip.sh
+
+host=$(hostname)
+kernel=$(uname -r)
+nice_time=$(date '+%a %b %d %H:%M %Z')
+uptime_str=$(uptime -p 2>/dev/null | sed 's/^up //')
+
+# Prefer the container's uplink over docker's bridge addresses.
+lan_ip=$(ip -4 -o addr show dev eth0 scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+[ -z "$lan_ip" ] && lan_ip=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+
+visitor=$(current_session_user_ip)
+visitor_ip=$(printf '%s' "$visitor" | awk '{print $2}')
+
+echo ""
+echo "  SYSTEM:  $host (Kernel: $kernel)"
+if [ -n "$uptime_str" ]; then
+  echo "  TIME:    $nice_time   |   UPTIME: $uptime_str"
+else
+  echo "  TIME:    $nice_time"
+fi
+
+if [ -n "$visitor_ip" ]; then
+  vcountry=$(geo_country "$visitor_ip")
+  if [ "$vcountry" = "LAN" ]; then
+    echo "  IPs:     ${lan_ip:-unknown} (LAN)   |   $visitor_ip (You)"
+  else
+    echo "  IPs:     ${lan_ip:-unknown} (LAN)   |   $visitor_ip (You, $vcountry)"
+  fi
+else
+  echo "  IPs:     ${lan_ip:-unknown} (LAN)"
+fi

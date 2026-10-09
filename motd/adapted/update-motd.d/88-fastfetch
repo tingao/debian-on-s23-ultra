@@ -1,0 +1,4 @@
+#!/bin/sh
+command -v fastfetch >/dev/null 2>&1 || exit 0
+echo ""
+fastfetch

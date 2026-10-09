@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug variant only.
+
+  This file exists so the pairing-notification test hook is present in a debug APK and
+  completely absent from a release APK. The class it names lives in src/debug/java, so
+  a release build has neither the component nor the class - not "a disabled component",
+  no component at all. That is stronger than a runtime FLAG_DEBUGGABLE check, which
+  would still put an exported receiver into the shipped manifest.
+
+  Usage (debug builds only; the app must be running or the broadcast will be refused):
+
+      adb shell am broadcast -a com.dsh.autoroot.TEST_PAIRING \
+          -n com.dsh.autoroot/.PairingTestReceiver
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+
+        <receiver
+            android:name=".PairingTestReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.dsh.autoroot.TEST_PAIRING" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

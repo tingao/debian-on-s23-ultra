@@ -1,0 +1,75 @@
+# ota_lockdown
+# Samsung firmware-update / device-management endpoints, PLUS the wider Samsung
+# block set (Samsung account, Galaxy Store, Find My Mobile, SmartThings,
+# Samsung Cloud, telemetry).
+#
+# ---------------------------------------------------------------- OTA / DM ----
+# Used by FotaAgent (com.wssyncmldm), SOAgent (com.sec.android.soagent) and
+# SDMConfig (com.samsung.android.sdm.config). Harvested from this device's own
+# FOTA logs and app config.
+# --- FOTA version-check + firmware download ---
+0.0.0.0 fota-cloud-dn.ospserver.net
+0.0.0.0 fota-cloud.ospserver.net
+0.0.0.0 fota-cloud-dvce-apis.samsungdms.net
+0.0.0.0 fota-apis.samsungdm.com
+0.0.0.0 ifota-apis.samsungdm.com
+# --- DM session / registration / download descriptor ---
+0.0.0.0 dms.ospserver.net
+0.0.0.0 dm.ospserver.net
+0.0.0.0 www.ospserver.net
+0.0.0.0 ospserver.net
+0.0.0.0 cfota1.ospserver.net
+0.0.0.0 cfota2.ospserver.net
+0.0.0.0 cfota3.ospserver.net
+0.0.0.0 cfota4.ospserver.net
+0.0.0.0 cfota.ospserver.net
+# --- SOAgent ---
+0.0.0.0 dir-apis.samsungdm.com
+0.0.0.0 samsungdm.com
+# --- staging / china builds ---
+0.0.0.0 stg-fota-cloud.samsungdms.net
+0.0.0.0 stg-fota-cloud-dvce-apis.samsungdms.net
+0.0.0.0 stg-chn-fota.samsungdms.net
+0.0.0.0 samsungdms.net
+# --- legacy Samsung FOTA / DM names ---
+0.0.0.0 fota.dm.samsung.com
+0.0.0.0 neofota.dm.samsung.com
+0.0.0.0 fota.dm.samsungmobile.com
+0.0.0.0 kfota.samsungdm.com
+0.0.0.0 fota.samsungdm.com
+0.0.0.0 nsdm.dm.samsung.com
+0.0.0.0 dm.samsung.com
+# --- CDN the FOTA host resolves to (Akamai) ---
+0.0.0.0 secak-fota-dn.samsungdm.com
+0.0.0.0 eip-terr-eu.secak-fota-dn.samsungdm.com
+# --- FCM project used ONLY by the FOTA client for update push ---
+0.0.0.0 api-project-994410787046.firebaseio.com
+
+# ------------------------------------------------------- WIDER SAMSUNG SET ----
+# WARNING: these DO break Samsung features. Enabled at your request.
+# --- Samsung account / sign-in ---
+0.0.0.0 account.samsung.com
+0.0.0.0 api.samsungidp.com
+0.0.0.0 account.samsung.cn
+0.0.0.0 sso.samsung.com
+# --- Galaxy Store / app updates ---
+0.0.0.0 galaxystore.samsung.com
+0.0.0.0 apps.samsung.com
+0.0.0.0 samsungapps.com
+0.0.0.0 galaxyapps.com
+# --- Find My Mobile / SmartThings / Cloud ---
+0.0.0.0 findmymobile.samsung.com
+0.0.0.0 smartthings.com
+0.0.0.0 samsungcloud.com
+0.0.0.0 samsungclouddev.com
+0.0.0.0 cloud.samsung.com
+# --- Samsung push / device management ---
+0.0.0.0 dpm.samsung.com
+0.0.0.0 nrm.samsung.com
+0.0.0.0 push.samsungosp.com
+0.0.0.0 asp.samsungosp.com
+# --- Samsung telemetry / diagnostics ---
+0.0.0.0 dc.di.atlas.samsung.com
+0.0.0.0 regi.di.atlas.samsung.com
+0.0.0.0 di.atlas.samsung.com
+0.0.0.0 dqa.samsung.com

@@ -1,0 +1,62 @@
+# Build output and machine-specific files
+build/
+.gradle/
+local.properties
+.cxx/
+*.aab
+*.ap_
+*.dex
+*.iml
+.idea/
+.vscode/
+
+# Real credentials never belong here.
+secrets/
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+*.token
+token
+config.env
+# The Debian SSH key has no extension, so none of the rules above catch it. A bare
+# "git add -A" would have committed the private half of the key that is the only way
+# into the server. Name it explicitly, private and public.
+#
+# The glob covers renamed and versioned copies too: encrypt_debian_key, debian_key_new,
+# debian_key_2026-10, debian_key.rotated. An exact-name rule missed "debian_key_new"
+# and left it stageable, which is exactly how a key ends up in a repo.
+debian_key
+debian_key.*
+debian_key_*
+debian_key-*
+*debian_key
+*debian_key.*
+*debian_key_*
+*tools/debian_key*
+*.sshkey
+*.pem
+known_hosts
+tools/
+
+# The exploit payloads and the bundled Shizuku APK ARE committed on purpose.
+# Root My Galaxy is Apache-2.0 and Shizuku is Apache-2.0, so they can be
+# redistributed with attribution, and shipping them is what makes this a single
+# APK that works on a stock phone. See NOTICE for the attribution.
+!app/app/src/main/assets/stability-launcher
+!app/app/src/main/assets/ksu-helper
+!app/app/src/main/assets/ksu-payload
+!app/app/src/main/assets/mm-exec-factory
+!app/app/src/main/assets/ksud-selected
+!app/app/src/main/assets/shizuku.apk
+
+# The built APK is committed too, so somebody can install without a toolchain.
+# Everything else with this extension is build output.
+*.apk
+!app/app/src/main/assets/shizuku.apk
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*~
+*.swp

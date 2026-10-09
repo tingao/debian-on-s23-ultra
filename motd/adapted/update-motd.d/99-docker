@@ -1,0 +1,8 @@
+#!/bin/sh
+command -v docker >/dev/null 2>&1 || exit 0
+docker info >/dev/null 2>&1 || exit 0
+running=$(docker ps -q 2>/dev/null | wc -l)
+stopped=$(docker ps -aq --filter status=exited 2>/dev/null | wc -l)
+echo ""
+echo "Containers: ${running} Running | ${stopped} Stopped"
+docker ps -a --format '{{.Names}}' 2>/dev/null | pr -2 -t -w 100

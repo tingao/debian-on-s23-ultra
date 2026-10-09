@@ -1,0 +1,26 @@
+#!/bin/sh
+. /usr/local/lib/motd-geoip.sh
+
+line=$(last -F 2>/dev/null | grep -Ev '^(reboot|wtmp|$)' | awk '$2 !~ /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/' | head -1)
+[ -z "$line" ] && exit 0
+
+user=$(printf '%s' "$line" | awk '{print $1}')
+field3=$(printf '%s' "$line" | awk '{print $3}')
+
+case "$field3" in
+  *.*.*.*|*:*)
+    ip="$field3"
+    when=$(printf '%s' "$line" | awk '{print $4, $5, $6, $7, $8}')
+    ;;
+  *)
+    ip=""
+    when=$(printf '%s' "$line" | awk '{print $3, $4, $5, $6, $7}')
+    ;;
+esac
+
+if [ -n "$ip" ]; then
+  country=$(geo_country "$ip")
+  echo "Last login: $when from $ip ($user, $country)"
+else
+  echo "Last login: $when ($user, local console)"
+fi

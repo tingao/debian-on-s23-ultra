@@ -1,0 +1,18 @@
+#!/bin/sh
+# Adapted for the server chroot: no systemd and no journald here, so read
+# sshguard's own log and check for the blocker process instead.
+[ -x /usr/sbin/sshguard ] || [ -x /usr/libexec/sshguard/sshg-blocker ] || exit 0
+pgrep -x sshg-blocker >/dev/null 2>&1 || exit 0
+
+LOG=/var/log/sshguard.log
+attempts=$(grep -c 'WOULD-BLOCK\|BLOCKED' "$LOG" 2>/dev/null)
+enforced=$(grep -c 'BLOCKED' "$LOG" 2>/dev/null)
+
+echo ""
+echo "SSHGuard (sshd):"
+echo "   |-- Failed-login bans triggered: ${attempts:-0}"
+if [ "${enforced:-0}" -gt 0 ]; then
+  echo "   \`-- IPs actually blocked: ${enforced}"
+else
+  echo "   \`-- IPs blocked: 0  (kernel forbids nft/iptables here)"
+fi

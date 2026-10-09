@@ -1,0 +1,49 @@
+This app is one free thing built out of several other free things. Each bundled
+component keeps the licence it arrived with; the notices below are the attribution
+those licences require. Nothing here relicenses anything.
+
+This app's own source is MIT licensed. NOTICE.txt covers the parts that are not ours.
+
+--------------------------------------------------------------------------------
+Root My Galaxy kernel exploit (CVE-2026-43499, "BOPE")
+  https://github.com/soumarcelino/Root-My-Galaxy-SM-S918B
+  Copyright the Root My Galaxy authors. Licensed under Apache-2.0.
+  The files stability-launcher, ksu-helper, ksu-payload, mm-exec-factory and
+  ksud-selected in this app's assets are taken unmodified from the
+  Root-My-Galaxy-SM-S918B-S918BXXSAFZI1-Community-Port release, which is built for
+  the S918BXXSAFZI1 firmware this app targets.
+
+  These are exploit payloads. They are redistributed as they came, unmodified, with
+  no warranty of any kind, and they do things to a kernel that can brick a phone.
+  That risk is the user's, and it is not taken on by the authors above or by this
+  app's author.
+
+--------------------------------------------------------------------------------
+Android Debug Bridge (adb)
+  https://android.googlesource.com/platform/packages/modules/adb
+  Copyright the Android Open Source Project. Licensed under Apache-2.0.
+  Bundled as libadb.so for arm64, so the app can start Shizuku with no computer:
+  it pairs with the phone's own wireless debugging, then runs a shell over
+  localhost. The file is named .so on purpose. The native library directory is the
+  only place Android lets an app execute a file that it shipped itself.
+
+--------------------------------------------------------------------------------
+KernelSU Next (kernel-side root management, and the ksud userspace component)
+  https://github.com/rifsxd/KernelSU-Next
+  Licensed under GPL-3.0. This is a copyleft licence and it is not affected by the
+  MIT licence on this app's own code. Corresponding source for the version shipped
+  here is available from the URL above; the userspace component is shipped as the
+  unmodified `ksud-selected` asset.
+
+--------------------------------------------------------------------------------
+Shizuku (provides the shell context an app cannot otherwise obtain)
+  https://github.com/RikkaApps/Shizuku
+  Copyright 2017-2024 Rikka. Licensed under Apache-2.0.
+  shizuku.apk in this app's assets is the unmodified upstream release build
+  (v13.6.0), redistributed so that installing this app is enough.
+
+--------------------------------------------------------------------------------
+Debian GNU/Linux root filesystem
+  https://images.linuxcontainers.org/images/debian/trixie/arm64/default/
+  The app downloads this at runtime. Debian is free software; the image is
+  published by the Linux Containers project.

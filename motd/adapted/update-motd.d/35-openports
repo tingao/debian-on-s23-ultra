@@ -1,0 +1,28 @@
+#!/bin/sh
+UFW=/usr/sbin/ufw
+
+if [ -x "$UFW" ]; then
+  out=$("$UFW" status 2>/dev/null)
+  printf '%s\n' "$out" | grep -q '^Status: active' || exit 0
+  lines=$(printf '%s\n' "$out" | awk '
+    /ALLOW/ && $0 !~ /\(v6\)/ {
+      port = $1
+      idx = index($0, "#")
+      label = "?"
+      if (idx > 0) { label = substr($0, idx + 1); gsub(/^[ \t]+|[ \t]+$/, "", label) }
+      if (!(port in seen)) { seen[port] = 1; printf "%s\t%s\n", port, label }
+    }
+  ')
+  [ -z "$lines" ] && exit 0
+  echo ""
+  echo "Open ports:"
+  printf '%s\n' "$lines" | awk -F'\t' '{printf "   %-10s %s\n", $1, $2}'
+  exit 0
+fi
+
+# No ufw in a container (the handset does the NAT), so report listeners.
+ports=$(ss -ltn 2>/dev/null | awk 'NR>1 {print $4}' | sed 's/.*://' | sort -n -u | tr '\n' ' ')
+[ -z "$ports" ] && exit 0
+echo ""
+echo "Listening TCP ports:"
+echo "   $ports"

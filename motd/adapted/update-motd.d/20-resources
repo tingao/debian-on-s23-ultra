@@ -1,0 +1,83 @@
+#!/bin/sh
+# Bars: escapes live in the printf format string (every POSIX printf interprets
+# \ddd there). printf '%s' does NOT, which makes the upstream version print
+# literal "\xe2\x96\x88" text.
+bar() {
+  pct=$1
+  width=30
+  [ "$pct" -gt 100 ] 2>/dev/null && pct=100
+  [ "$pct" -lt 0 ] 2>/dev/null && pct=0
+  filled=$((pct * width / 100))
+  empty=$((width - filled))
+  printf '['
+  i=0
+  while [ $i -lt $filled ]; do printf '\342\226\210'; i=$((i + 1)); done
+  i=0
+  while [ $i -lt $empty ]; do printf '\342\226\221'; i=$((i + 1)); done
+  printf ']'
+}
+
+disk_line() {
+  line=$1
+  pct=$(printf '%s' "$line" | awk '{print $5}' | tr -d '%')
+  used=$(printf '%s' "$line" | awk '{print $3}' | awk '{printf "%.0fG", $1/1024/1024}')
+  total=$(printf '%s' "$line" | awk '{print $2}' | awk '{printf "%.0fG", $1/1024/1024}')
+  printf '%s  %s%%  (%s/%s)' "$(bar "$pct")" "$pct" "$used" "$total"
+}
+
+read -r _ u1 n1 s1 i1 rest < /proc/stat
+sleep 0.3
+read -r _ u2 n2 s2 i2 rest < /proc/stat
+total1=$((u1 + n1 + s1 + i1))
+total2=$((u2 + n2 + s2 + i2))
+idle_delta=$((i2 - i1))
+total_delta=$((total2 - total1))
+cpu_pct=0
+[ "$total_delta" -gt 0 ] && cpu_pct=$(((total_delta - idle_delta) * 100 / total_delta))
+cores=$(nproc)
+
+mem_total_kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+mem_avail_kb=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
+mem_used_kb=$((mem_total_kb - mem_avail_kb))
+mem_pct=0
+[ "$mem_total_kb" -gt 0 ] && mem_pct=$((mem_used_kb * 100 / mem_total_kb))
+mem_used_h=$(awk -v k="$mem_used_kb" 'BEGIN{printf "%.1fG", k/1024/1024}')
+mem_total_h=$(awk -v k="$mem_total_kb" 'BEGIN{printf "%.1fG", k/1024/1024}')
+
+echo ""
+printf 'CPU   %s  %s%%  (%s cores)\n' "$(bar "$cpu_pct")" "$cpu_pct" "$cores"
+printf 'RAM   %s  %s%%  (%s/%s)\n' "$(bar "$mem_pct")" "$mem_pct" "$mem_used_h" "$mem_total_h"
+printf 'DISK  %s\n' "$(disk_line "$(df -P / | tail -1)")"
+
+# The handset's internal storage is mounted here and holds the container image -
+# the thing that actually grows and has no discard.
+if [ -d /storage/emulated/0 ]; then
+  ph_line=$(df -P /storage/emulated/0 2>/dev/null | tail -1)
+  [ -n "$ph_line" ] && printf 'PHONE %s  <- handset /data, holds the container image\n' "$(disk_line "$ph_line")"
+fi
+
+# The handset's battery. The container shares the phone's kernel, so the
+# power_supply class is readable from inside - no host-side helper needed.
+#
+# Units on this kernel (max77705 fuel gauge), calibrated against the handset's
+# own `dumpsys battery`: voltage_now is uV, temp is 0.1 degC, and current_now is
+# mA even though sysfs conventionally means uA here - dumpsys reports the
+# charger's maximum as 475000 uA while sysfs reads 331, i.e. 331 mA. So the sign
+# gives the direction and the magnitude is milliamps.
+#
+# The bar reads the opposite way round from CPU/RAM/DISK: full means charged,
+# not busy.
+if [ -r /sys/class/power_supply/battery/capacity ]; then
+  bat=/sys/class/power_supply/battery
+  cap=$(cat "$bat/capacity" 2>/dev/null)
+  st=$(cat "$bat/status" 2>/dev/null)
+  cur=$(cat "$bat/current_now" 2>/dev/null)
+  volt=$(cat "$bat/voltage_now" 2>/dev/null)
+  temp=$(cat "$bat/temp" 2>/dev/null)
+  extra=""
+  [ -n "$volt" ] && extra="$extra, $(awk -v v="$volt" 'BEGIN{printf "%.2fV", v/1000000}')"
+  [ -n "$cur" ]  && extra="$extra, $(awk -v c="$cur" 'BEGIN{printf "%+dmA", c}')"
+  [ -n "$temp" ] && extra="$extra, $(awk -v t="$temp" 'BEGIN{printf "%.0fC", t/10}')"
+  st=$(printf '%s' "$st" | tr 'A-Z' 'a-z')
+  printf 'BAT   %s  %s%%  (%s%s)  <- handset battery\n' "$(bar "$cap")" "$cap" "$st" "$extra"
+fi

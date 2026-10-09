@@ -1,0 +1,24 @@
+# ota_lockdown_more
+# OPTIONAL wider blocklist. NOT active by default.
+#
+# WARNING: this DOES break Samsung features. Only use it if you want the phone to
+# stop talking to Samsung cloud services in general. Copy the lines you want into
+# hosts.block and re-run lockdown.sh.
+#
+# --- Samsung account / sign-in (BREAKS Samsung account) ---
+# 0.0.0.0 account.samsung.com
+# 0.0.0.0 api.samsungidp.com
+# 0.0.0.0 account.samsung.cn
+# --- Galaxy Store / app updates (BREAKS store + app updates) ---
+# 0.0.0.0 galaxystore.samsung.com
+# 0.0.0.0 apps.samsung.com
+# 0.0.0.0 sso.samsung.com
+# --- Find My Mobile / SmartThings / Cloud (BREAKS those features) ---
+# 0.0.0.0 findmymobile.samsung.com
+# 0.0.0.0 smartthings.com
+# 0.0.0.0 samsungcloud.com
+# --- Samsung telemetry / diagnostics (safe-ish to block) ---
+# 0.0.0.0 dc.di.atlas.samsung.com
+# 0.0.0.0 regi.di.atlas.samsung.com
+# 0.0.0.0 dpm.samsung.com
+# 0.0.0.0 nrm.samsung.com
