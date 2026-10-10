@@ -39,6 +39,14 @@ while true; do
   sleep 60
   N=$((N + 1))
 
+  # Battery / mains alerts over Telegram. Sourced, not executed, so the 60 s loop
+  # here is the only scheduler needed - no second service ticking on the phone.
+  # The file is optional: an older deployment without it still runs.
+  if [ -f /data/local/tmp/power-alert.sh ]; then
+    POWER_ALERT_SOURCED=1 . /data/local/tmp/power-alert.sh
+    pa_check
+  fi
+
   # staged OTA package reappeared?
   for d in /data/fota /cache/fota /data/ota /data/ota_package; do
     [ -d "$d" ] || continue
