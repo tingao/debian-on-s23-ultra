@@ -49,13 +49,17 @@ pa_send() {
     pa_log "cannot send: set POWER_ALERT_TOKEN and POWER_ALERT_CHAT, or provide $PA_CONF"
     return 1
   fi
-  # Bot API reads text after "text="; urlencode the few characters that matter.
-  M=$(printf '%s' "$1" | sed -e 's/%/%25/g' -e 's/ /%20/g' -e 's/&/%26/g' -e 's/#/%23/g' \
-                              -e 's/+/%2B/g' -e 's/"/%22/g' -e "s/'/%27/g" -e 's/</%3C/g' -e 's/>/%3E/g')
+  # POST with --data-urlencode rather than building a query string. The messages are
+  # multi-line now, and the hand-rolled sed encoder could not encode a newline at all -
+  # a raw one in the URL would have truncated the request at the first line break.
+  # curl does the whole job properly, whatever the text contains.
   R=$(/system/bin/curl -sS --max-time 20 \
-        "https://api.telegram.org/bot$T/sendMessage?chat_id=$C&text=$M" 2>&1)
+        --data-urlencode "chat_id=$C" \
+        --data-urlencode "text=$1" \
+        "https://api.telegram.org/bot$T/sendMessage" 2>&1)
   case "$R" in
-    *'"ok":true'*) pa_log "alert sent: $1"; return 0 ;;
+    # The log is one line per event, so flatten the message for it.
+    *'"ok":true'*) pa_log "alert sent: $(printf '%s' "$1" | tr '\n' ' ')"; return 0 ;;
     *)             pa_log "alert FAILED: $(printf '%s' "$R" | head -c 200)"; return 1 ;;
   esac
 }
@@ -90,11 +94,17 @@ pa_check() {
   elif [ "$ST" != "$PST" ]; then
     case "$ST" in
       Charging|Full)
-        pa_send "AutoRoot: charger connected (${CAP}%, status=$ST)" ;;
+        pa_send "[System Information]
+Charger connected.
+Battery level: ${CAP}%" ;;
       Discharging|"Not charging")
-        pa_send "AutoRoot: CHARGER UNPLUGGED (${CAP}%, status=$ST)" ;;
+        pa_send "[System Information]
+Charger disconnected.
+Battery level: ${CAP}%" ;;
       *)
-        pa_send "AutoRoot: battery status $PST -> $ST (${CAP}%)" ;;
+        pa_send "[System Information]
+Charger state changed: $PST to $ST.
+Battery level: ${CAP}%" ;;
     esac
     NEW_LOW=0
   fi
@@ -105,7 +115,9 @@ pa_check() {
     Discharging|"Not charging"|Unknown)
       if [ "$CAP" -le "$PA_LOW_FIRST" ]; then
         if [ "$NEW_LOW" -eq 0 ] || [ "$CAP" -le $((NEW_LOW - PA_LOW_STEP)) ]; then
-          pa_send "AutoRoot: battery LOW ${CAP}% and not charging"
+          pa_send "[System Information]
+Battery low.
+Battery level: ${CAP}%"
           NEW_LOW=$CAP
         fi
       fi

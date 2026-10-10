@@ -182,6 +182,32 @@ works fine, so that is what this uses.
 quietly breaks `sudo` and `su` in ways that take a while to diagnose, and the workarounds
 all fail. [docs/07](docs/07-dead-ends.md) has the measurements.
 
+## Power alerts
+
+The watchdog already runs every 60 seconds, so it also watches the battery. It sends a
+message when the charger goes on or off, and when the battery gets low:
+
+```
+[System Information]
+Charger disconnected.
+Battery level: 100%
+```
+
+Low battery alerts once at 15%, then again on each further 5% drop. Only changes are
+sent, so a phone that stays plugged in produces nothing.
+
+It needs a Telegram bot. Either put these in the environment, or point `POWER_ALERT_CONF`
+at a file containing `BOT_TOKEN=` and `CHAT_ID=`:
+
+```
+POWER_ALERT_TOKEN      bot token
+POWER_ALERT_CHAT       chat or group id
+```
+
+Without them it logs that it cannot send and carries on; it never takes the watchdog
+down. Because it needs no rootfs, it still works when Debian itself is not running, which
+is the case that matters if the power is going away.
+
 ## Known limits
 
 No container runtime works, because of the missing namespace support. No GPU compute is
