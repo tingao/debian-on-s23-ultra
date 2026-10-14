@@ -12,6 +12,10 @@
 
       adb shell am broadcast -a com.dsh.autoroot.TEST_PAIRING \
           -n com.dsh.autoroot/.PairingTestReceiver
+      adb shell am broadcast -a com.dsh.autoroot.TEST_ALERT \
+          -n com.dsh.autoroot/.PairingTestReceiver
+      adb shell am broadcast -a com.dsh.autoroot.TEST_ALERT_RETRY \
+          -n com.dsh.autoroot/.PairingTestReceiver
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -24,6 +28,8 @@
             tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="com.dsh.autoroot.TEST_PAIRING" />
+                <action android:name="com.dsh.autoroot.TEST_ALERT" />
+                <action android:name="com.dsh.autoroot.TEST_ALERT_RETRY" />
             </intent-filter>
         </receiver>
 

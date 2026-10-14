@@ -14,6 +14,19 @@ import android.content.Context
  */
 object RootFlow {
 
+    /**
+     * Why the last run failed, so RootService knows what to offer.
+     *
+     * Once the payload has mutated the kernel it refuses to try again ("refusing unsafe retry
+     * before reboot"), and a manual ksu-helper --late-load against that state answers
+     * "su: connect daemon: Permission denied". Nothing is salvageable on that boot, so it is
+     * told apart from the failures where a second attempt is genuinely safe. A retry button
+     * on the mutated case would invite the one action the exploit will not take.
+     */
+    enum class Failure { NONE, RETRY_SAFE, REBOOT_REQUIRED }
+
+    @Volatile var lastFailure = Failure.NONE
+
     private val TMP = Sh.TMP
     private val DIR = "$TMP/ota_lockdown"
 
@@ -75,13 +88,16 @@ object RootFlow {
      */
     fun run(ctx: Context): Boolean {
         Sh.init(ctx)
+        lastFailure = Failure.NONE
 
         if (!Sh.shizukuReady()) {
             Sh.log("Shizuku not running - cannot obtain shell context")
+            lastFailure = Failure.RETRY_SAFE
             return false
         }
         if (!Sh.ensureService()) {
             Sh.log("could not bind the shell user service (Shizuku permission granted?)")
+            lastFailure = Failure.RETRY_SAFE
             return false
         }
 
@@ -104,6 +120,7 @@ object RootFlow {
         Sh.log("=== waiting for gate ===")
         if (!waitForGate()) {
             Sh.log("gate never opened (device too warm / too busy)")
+            lastFailure = Failure.RETRY_SAFE
             return false
         }
 
@@ -151,6 +168,7 @@ object RootFlow {
             if (tail.contains("kernel-mutation-pending") || tail.contains("refusing unsafe retry")) {
                 Sh.log("exploit stopped at kernel-mutation-pending: the kernel is mutated but the")
                 Sh.log("physical-write step failed, so there is no root this boot and no safe retry.")
+                lastFailure = Failure.REBOOT_REQUIRED
                 deadEnd = true
                 break
             }
@@ -161,6 +179,9 @@ object RootFlow {
 
         if (deadEnd || !reached) {
             Sh.log("exploit did not produce root this boot; tail=${Sh.exec("tail -8 '$TMP/bope.log' 2>/dev/null")}")
+            // The mutated case set this already and a second attempt is not safe; everything
+            // else that lands here failed before the kernel was touched.
+            if (lastFailure != Failure.REBOOT_REQUIRED) lastFailure = Failure.RETRY_SAFE
             return false
         }
         Sh.log("exploit reported success")
@@ -172,7 +193,13 @@ object RootFlow {
         Thread.sleep(3_000)
         val ok = Sh.isRooted()
         Sh.log("root check: ${if (ok) "ROOTED" else "not rooted"}")
-        if (ok) afterRoot(ctx)
+        if (ok) {
+            afterRoot(ctx)
+        } else {
+            // The exploit claimed success and the late-load ran, but su is still missing.
+            // The kernel was mutated on the way here, so a repeat attempt is not safe.
+            lastFailure = Failure.REBOOT_REQUIRED
+        }
         return ok
     }
 

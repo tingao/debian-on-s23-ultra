@@ -108,7 +108,7 @@ asks again, the app's data was cleared or Wireless debugging was reset on the ph
 
 ## After a reboot
 
-Root normally returns by itself in about 90 seconds, unattended.
+Root normally comes back on its own, unattended, in about two to three minutes.
 
 The app deliberately waits **60 seconds** before touching anything, so a broken flow can
 be interrupted instead of repeating on every boot. Three things stop it: the autostart
@@ -117,6 +117,29 @@ toggle in the app, a pause file, or killing the app. All three are in
 
 If the phone was hot it takes longer, because the exploit refuses to start above 48 °C
 and waits for the phone to cool.
+
+### When it does not come back
+
+The exploit does not succeed every time. It arranges kernel memory into a shape it
+recognises before it can write anything, and on some boots it does not find that shape. The
+sign is a phone that has been up for several minutes and refuses SSH.
+
+The app notices and puts up a notification. What it asks you to do depends on how far the
+exploit got:
+
+| Notification | What happened | What to do |
+|---|---|---|
+| **Root did not come back** | The exploit never got as far as running, usually because the phone was busy or too warm. Kernel memory is untouched. | Tap **Retry**. No restart needed. |
+| **Root failed, and the phone needs a restart** | The exploit changed kernel state and then failed at the write step. | Restart the phone. The app takes over by itself afterwards, so there is nothing to press. |
+
+The second case has no Retry button on purpose. Once the kernel has been changed the exploit
+will not run again until the phone restarts, because a second attempt against a changed
+kernel could corrupt it. A Retry button there would point at the one action that must not
+happen.
+
+Both notices use a separate notification channel set to high importance, so they are not
+silent. If you have blocked notifications for the app, you will see neither, and the only
+symptom will be a phone that never answers on 1304.
 
 ## Before you expose this to the internet
 
@@ -215,6 +238,13 @@ available from the chroot, since Debian has no driver for the Adreno 740. `sudo`
 cannot work inside the chroot. There is no way to cap CPU with a cgroup quota, because
 the kernel is built without `CONFIG_CFS_BANDWIDTH`. All four are explained with
 measurements in the docs.
+
+The exploit is probabilistic. It needs a particular kernel memory layout at the moment it
+runs, so a boot can miss, and a miss after kernel state has already changed means the phone
+has to be restarted before it will try again. The app raises a notification either way,
+saying which of the two happened. If you need a phone that stays up with nobody around to
+restart it, plan for that: put it on a socket you can power-cycle remotely, or keep a second
+way in.
 
 ## What is in here
 

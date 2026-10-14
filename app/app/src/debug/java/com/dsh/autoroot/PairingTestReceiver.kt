@@ -34,17 +34,38 @@ class PairingTestReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION = "com.dsh.autoroot.TEST_PAIRING"
+
+        /**
+         * Posts the two failure notices. That path is otherwise unreachable on demand, because
+         * reaching it needs the exploit to fail and the exploit fails when it feels like it.
+         *
+         *     adb shell am broadcast -a com.dsh.autoroot.TEST_ALERT \
+         *         -n com.dsh.autoroot/.PairingTestReceiver
+         *     adb shell am broadcast -a com.dsh.autoroot.TEST_ALERT_RETRY \
+         *         -n com.dsh.autoroot/.PairingTestReceiver
+         */
+        const val ACTION_ALERT = "com.dsh.autoroot.TEST_ALERT"
+        const val ACTION_ALERT_RETRY = "com.dsh.autoroot.TEST_ALERT_RETRY"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != ACTION) return
         if (!isDebuggable(context)) return
-        try {
-            ContextCompat.startForegroundService(context, PairingService.startIntent(context))
-            Sh.log("test trigger: posting the pairing notification")
-        } catch (t: Throwable) {
-            // The whole point of this hook is to surface what was previously discarded.
-            Sh.log("test trigger: could not start PairingService: $t")
+        when (intent.action) {
+            ACTION -> try {
+                ContextCompat.startForegroundService(context, PairingService.startIntent(context))
+                Sh.log("test trigger: posting the pairing notification")
+            } catch (t: Throwable) {
+                // The whole point of this hook is to surface what was previously discarded.
+                Sh.log("test trigger: could not start PairingService: $t")
+            }
+            ACTION_ALERT -> {
+                RootAlerts.failure(context, retryable = false)
+                Sh.log("test trigger: posted the restart-required failure notice")
+            }
+            ACTION_ALERT_RETRY -> {
+                RootAlerts.failure(context, retryable = true)
+                Sh.log("test trigger: posted the retryable failure notice")
+            }
         }
     }
 

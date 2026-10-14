@@ -18,6 +18,7 @@ class RootService : Service() {
 
     companion object {
         const val ACTION_RUN = "com.dsh.autoroot.RUN"
+        const val ACTION_RETRY = "com.dsh.autoroot.RETRY"
         private const val CH_ID = "autoroot"
         private const val CH_NAME = "AutoRoot"
         private const val NOTIF_ID = 4711
@@ -69,6 +70,7 @@ class RootService : Service() {
                 }
             )
         }
+        RootAlerts.ensureChannel(this)
         val pi = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -118,7 +120,13 @@ class RootService : Service() {
                     return@Thread
                 }
 
-                Sh.log("settling ${SETTLE_SECONDS}s before touching anything")
+                // A retry tapped in the failure notification skips the settle. That window
+                // exists so there is time to stop an automatic boot start; someone who just
+                // pressed Retry has already made that call.
+                val settleSecs = if (intent?.action == ACTION_RETRY) 0 else SETTLE_SECONDS
+                if (settleSecs == 0) Sh.log("retry requested from the notification - no settle")
+
+                Sh.log("settling ${settleSecs}s before touching anything")
                 Sh.log("  (stop it: turn off autostart in the app, create the pause file, or kill the app)")
                 // Count WALL CLOCK, not iterations.
                 //
@@ -132,7 +140,7 @@ class RootService : Service() {
                 //
                 // A deadline cannot stretch. Whatever the scheduler does, this ends after
                 // SETTLE_SECONDS of real time.
-                val settleEnd = System.currentTimeMillis() + SETTLE_SECONDS * 1_000L
+                val settleEnd = System.currentTimeMillis() + settleSecs * 1_000L
                 var aborted = false
                 var lastLogged = 0
                 while (System.currentTimeMillis() < settleEnd) {
@@ -203,15 +211,21 @@ class RootService : Service() {
                 Sh.log(if (ok) "SUCCESS" else "FAILED")
 
                 val nm = getSystemService(NotificationManager::class.java)
-                if (Build.VERSION.SDK_INT >= 26) {
-                    nm.notify(
-                        NOTIF_ID,
-                        Notification.Builder(this, CH_ID)
-                            .setContentTitle(if (ok) "Rooted" else "Root failed")
-                            .setContentText(if (ok) "Lockdown applied, Debian server up on 1304" else "Check the app log")
-                            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                            .build()
-                    )
+                if (ok) {
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        nm.notify(
+                            NOTIF_ID,
+                            Notification.Builder(this, CH_ID)
+                                .setContentTitle("Rooted")
+                                .setContentText("Lockdown applied, Debian server up on 1304")
+                                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                                .build()
+                        )
+                    }
+                    RootAlerts.clear(this)
+                } else {
+                    // Say so where it can be seen, and offer the action that is actually safe.
+                    RootAlerts.failure(this, RootFlow.lastFailure != RootFlow.Failure.REBOOT_REQUIRED)
                 }
             } catch (t: Throwable) {
                 Sh.log("service error: ${t.message}")
