@@ -262,7 +262,7 @@ it, both Apache-2.0 and both attributed in `NOTICE`.
 | [docs/03](docs/03-autoroot-app.md) | The app: Shizuku, the shell service, the boot flow |
 | [docs/04](docs/04-debian-server.md) | The Debian chroot, sshd, hostnames |
 | [docs/04b](docs/04b-motd.md) | MOTD, adapted from another server |
-| [docs/05](docs/05-network-and-access.md) | Reaching the server, and the login account |
+| [docs/05](docs/05-network-and-access.md) | Reaching the server, the login account, and setting up a Cloudflare Tunnel |
 | [docs/06](docs/06-ota-lockdown.md) | Stopping Samsung OTA updates |
 | [docs/07](docs/07-dead-ends.md) | Everything that did not work, with measurements |
 | [docs/08](docs/08-gotchas.md) | Traps that cost real time |

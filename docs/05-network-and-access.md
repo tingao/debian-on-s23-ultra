@@ -24,13 +24,80 @@ depends on your setup. Two common routes:
 - **Port forward.** Forward TCP 1304 on your router to the phone's LAN address. Simple,
   and the phone's address is DHCP, so reserve it or the forward will point at nothing.
 - **A tunnel.** A WireGuard/Cloudflare/Tailscale-style tunnel avoids opening a port at
-  all. This is what the author uses, but it is ordinary third-party software — set it up
-  per its own documentation. Nothing in this repo or the app depends on it.
+  all. Nothing in this repo or the app depends on it. Cloudflare Tunnel is written up
+  [below](#setting-up-a-cloudflare-tunnel) because it is the one that has been run against
+  this setup, so its traps are known rather than guessed.
 
 Whichever you pick, **change the root password first** (see the README). The default is
 `root`, it is written in this repository, and port 1304 does not care who connects.
 
-## The login account: `root`
+## Setting up a Cloudflare Tunnel
+
+You need a domain whose DNS is on Cloudflare. The free plan is enough.
+
+**1. Create the tunnel.** In the [Zero Trust dashboard](https://one.dash.cloudflare.com), go
+to Networks then Tunnels, create a tunnel, and choose `cloudflared` as the connector. Give it
+any name you like. It then shows an install command containing a long token.
+
+**2. Put the token on the phone.** The app reads it from this path inside the chroot:
+
+```sh
+/data/local/chroot/debian/etc/cloudflared/token
+```
+
+The file holds the token and nothing else. Restrict it:
+
+```sh
+adb shell su -c 'chmod 600 /data/local/chroot/debian/etc/cloudflared/token'
+```
+
+That file is the only place it goes. `debian-start.sh` starts the connector on every boot
+when it is present and non-empty, so the tunnel comes back with the rest of the stack and
+there is no manual step.
+
+**A tunnel token and a Cloudflare API token are different credentials, and only the tunnel
+token belongs on the phone.** This trips people up because both are long strings issued by
+Cloudflare. An API token is for driving Cloudflare from a script, Terraform, or the API
+itself; if you use one, it lives on the machine running that script.
+
+**3. Route the hostname.** In the tunnel, add a public hostname such as
+`phone.example.com`, with service type **SSH** and URL `127.0.0.1:1304`. Localhost is the
+right address because the connector runs inside the chroot, which shares the phone's network
+stack, so that address is the phone itself.
+
+**4. Put an Access policy in front of it.** Add an Access application for the hostname with a
+policy you trust; an email one-time PIN is the simplest. Without it, anyone who learns the
+hostname reaches your sshd, and only the root password is in the way.
+
+**5. Client side.** With `cloudflared` installed locally:
+
+```
+Host phone
+  HostName phone.example.com
+  User root
+  Port 1304
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+Keep `%h` in the ProxyCommand. Naming a hostname literally there means the client ends up
+talking to whatever that name resolves to, and ssh then reports `REMOTE HOST IDENTIFICATION
+HAS CHANGED` against a host key that was never the phone's.
+
+### Traps worth knowing before you debug it
+
+- **`cloudflared service install` appears to work and does nothing.** There is no init system
+  inside a chroot, so the unit it writes never runs. Start the connector directly, which is
+  what `debian-start.sh` does.
+- **Quick tunnels cannot carry this.** `cloudflared tunnel --url ...` is HTTP-only, so SSH
+  will not pass through it.
+- **An empty token gives you no error.** The connector starts, stays up, and quietly never
+  connects. This is why `debian-start.sh` reads the token on the host side: inside the
+  chroot, `/bin/sh` inherits Android's `PATH`, where `cat` does not exist, so a `$(cat ...)`
+  there returns nothing.
+- **Access sessions expire.** You will need a browser re-authentication every so often. The
+  LAN address on port 1304 keeps working in the meantime, which is worth knowing before
+  concluding the phone is down.
+
 ## The login account: `root`
 
 ```sh
