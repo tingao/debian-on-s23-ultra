@@ -19,6 +19,15 @@ id_ed25519*
 *.token
 token
 config.env
+
+# The Android signing key and the file naming it. Losing the key means never being able to
+# ship an update to anyone who has the app, but publishing it means anyone can ship one that
+# installs over yours. Both are worse than a build that comes out unsigned.
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
 # The Debian SSH key has no extension, so none of the rules above catch it. A bare
 # "git add -A" would have committed the private half of the key that is the only way
 # into the server. Name it explicitly, private and public.

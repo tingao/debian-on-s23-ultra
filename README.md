@@ -33,6 +33,24 @@ kernel                      5.15.189-android13-8-33413713
 
 You need the phone, the APK, and about ten minutes. No computer and no cable.
 
+### If you already have 1.1 or 1.2
+
+Those releases were signed with the standard Android debug key, so anyone could build an APK
+that Android would accept as an update to this one. From 1.3 the app is signed with its own
+release key. Android will refuse to install the new version over the old:
+
+```
+INSTALL_FAILED_UPDATE_INCOMPATIBLE: ... signatures do not match newer version
+```
+
+Uninstall the app, then install 1.3 as a fresh install. Nothing that matters is lost: the
+app's own data is a preferences file and a pause flag, and the Debian rootfs lives outside it
+at `/data/local/chroot/debian`. An uninstall does not touch the rootfs.
+
+One item does need checking afterwards. Shizuku keeps its list of allowed apps by uid, a
+reinstall can change that uid, and the app cannot add itself. If the Shizuku item on the
+checklist comes back red, re-add AutoRoot in Shizuku.
+
 **1. Turn on Developer options.**
 Settings → About phone → Software information → tap **Build number** seven times.
 It will ask for your PIN and then say "Developer mode has been turned on".
@@ -254,6 +272,20 @@ The built APK is on the
 [releases page](https://github.com/tingao/debian-on-s23-ultra/releases/latest) rather than
 in the tree, because it is a binary. The exploit payloads and Shizuku are bundled inside
 it, both Apache-2.0 and both attributed in `NOTICE`.
+
+Building your own release needs a signing key, and the build refuses to invent one. Put a
+`keystore.properties` at the Gradle root with `storeFile`, `storePassword`, `keyAlias` and
+`keyPassword`, and `assembleRelease` signs with it. Without that file the release build comes
+out unsigned rather than falling back to the debug key. Make one with:
+
+```sh
+keytool -genkeypair -keystore my-release.jks -alias mykey \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Keep that file and its password somewhere you will still have them in five years. Lose the
+key and you can never ship an update to anyone who installed your build; leak it and anyone
+can ship one that installs over yours.
 
 | | |
 |---|---|
