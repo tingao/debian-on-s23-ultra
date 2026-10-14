@@ -43,8 +43,17 @@ object Sh {
 
     @Volatile private var svc: IUserService? = null
     @Volatile private var appCtx: Context? = null
-    private var bound = false
-    private val latch = CountDownLatch(1)
+    @Volatile private var bound = false
+
+    /**
+     * Replaced on every bind. A CountDownLatch cannot be reset, and Shizuku's server can be
+     * restarted out from under us - restarting adbd does exactly that, because Shizuku is a
+     * shell session over adb. A one-shot latch plus a `bound` flag that was never cleared
+     * meant ensureService() could not re-bind after that: it skipped bindUserService (bound
+     * still true), then waited on an already-open latch and returned false immediately. Every
+     * step after the restart reported "ERR: user service not bound".
+     */
+    @Volatile private var latch = CountDownLatch(1)
 
     private val conn = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -57,6 +66,9 @@ object Sh {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             svc = null
+            // Allow a re-bind. Without this the next ensureService() is a no-op.
+            bound = false
+            latch = CountDownLatch(1)
             Log.w(TAG, "user service disconnected")
         }
     }
@@ -126,19 +138,31 @@ object Sh {
             .version(1)
     }
 
-    /** Bind the shell-context user service. Safe to call repeatedly. */
+    /** Bind the shell-context user service. Safe to call repeatedly, including after a rebind. */
     fun ensureService(timeoutMs: Long = 30_000): Boolean {
-        svc?.let { return true }
+        // A dead binder can linger without onServiceDisconnected firing, so ask the binder
+        // itself rather than trusting a non-null reference.
+        svc?.let {
+            val alive = try { it.asBinder().pingBinder() } catch (t: Throwable) { false }
+            if (alive) return true
+            svc = null
+            bound = false
+            latch = CountDownLatch(1)
+        }
         val ctx = appCtx ?: return false
         if (!permissionGranted()) return false
-        try {
+        synchronized(this) {
             if (!bound) {
                 bound = true
-                Shizuku.bindUserService(args(ctx), conn)
+                latch = CountDownLatch(1)
+                try {
+                    Shizuku.bindUserService(args(ctx), conn)
+                } catch (t: Throwable) {
+                    bound = false
+                    log("bindUserService failed: ${t.message}")
+                    return false
+                }
             }
-        } catch (t: Throwable) {
-            log("bindUserService failed: ${t.message}")
-            return false
         }
         return latch.await(timeoutMs, TimeUnit.MILLISECONDS) && svc != null
     }

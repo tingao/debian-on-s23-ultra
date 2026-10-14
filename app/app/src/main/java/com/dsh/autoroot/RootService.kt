@@ -120,15 +120,33 @@ class RootService : Service() {
 
                 Sh.log("settling ${SETTLE_SECONDS}s before touching anything")
                 Sh.log("  (stop it: turn off autostart in the app, create the pause file, or kill the app)")
+                // Count WALL CLOCK, not iterations.
+                //
+                // This used to be `for (i in 1..60) { Thread.sleep(1_000) }`, which assumes a
+                // one-second sleep takes one second. During boot it does not: measured on the
+                // handset the loop reported "settle 15s/60s", then the next 15 seconds took
+                // 101 s, then 80 s, then 151 s - a 60-second settle that finished after five
+                // minutes and thirteen seconds. The exploit wants the quiet early-boot memory
+                // layout, so that delay is not harmless: it is the difference between the
+                // write primitive landing and failing.
+                //
+                // A deadline cannot stretch. Whatever the scheduler does, this ends after
+                // SETTLE_SECONDS of real time.
+                val settleEnd = System.currentTimeMillis() + SETTLE_SECONDS * 1_000L
                 var aborted = false
-                for (i in 1..SETTLE_SECONDS) {
-                    Thread.sleep(1_000)
+                var lastLogged = 0
+                while (System.currentTimeMillis() < settleEnd) {
+                    Thread.sleep(500)
                     if (isPaused()) { aborted = true; break }
                     // also honour the UI toggle going off mid-wait, so flipping it
                     // during the settle window stops the flow instead of only
                     // affecting the NEXT boot
                     if (!autoStartEnabled(applicationContext)) { aborted = true; break }
-                    if (i % 15 == 0) Sh.log("  settle ${i}s/${SETTLE_SECONDS}s")
+                    val done = ((SETTLE_SECONDS * 1_000L - (settleEnd - System.currentTimeMillis())) / 1_000L).toInt()
+                    if (done >= lastLogged + 15) {
+                        lastLogged = done
+                        Sh.log("  settle ${done}s/${SETTLE_SECONDS}s")
+                    }
                 }
                 if (aborted) {
                     Sh.log("aborted during settle - touching nothing")
@@ -136,12 +154,32 @@ class RootService : Service() {
                 }
                 Sh.log("settle done - starting the root flow")
 
-                // Poll for Shizuku: it self-starts shortly after boot.
-                var ready = false
-                for (i in 0 until 60) {
-                    if (Sh.shizukuReady()) { ready = true; break }
-                    if (i % 4 == 0) Sh.log("waiting for Shizuku… (${i * 5}s)")
-                    Thread.sleep(5_000)
+                // Shizuku does NOT self-start, and the old comment here claimed it did:
+                // "Poll for Shizuku: it self-starts shortly after boot." It was never
+                // true. Shizuku is a process running as the *shell* user, and becoming
+                // shell is precisely what an ordinary app cannot do - that is the whole
+                // reason Shizuku is in this chain at all. Nothing on the phone starts it,
+                // so five minutes of polling was five minutes of waiting for nothing,
+                // followed by "Shizuku never came up; aborting".
+                //
+                // This stayed hidden because Shizuku survives everything except a reboot,
+                // and it had been started by hand from its own UI. As long as it had been
+                // started once, every later run found it already up and the broken path
+                // was never taken.
+                //
+                // So start it here. startServer uses the app's own bundled adb against
+                // the phone's wireless debugging, which needs no code once the key exists,
+                // and wireless debugging itself is remembered across boots.
+                var ready = Sh.shizukuReady()
+                if (!ready) {
+                    Sh.log("Shizuku is not running - starting it")
+                    ShizukuBootstrap.startServer(applicationContext) { line -> Sh.log("  $line") }
+                    for (i in 0 until 12) {
+                        if (Sh.shizukuReady()) { ready = true; break }
+                        Thread.sleep(5_000)
+                    }
+                } else {
+                    Sh.log("Shizuku was already up")
                 }
                 if (!ready) {
                     Sh.log("Shizuku never came up; aborting")

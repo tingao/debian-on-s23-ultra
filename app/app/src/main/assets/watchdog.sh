@@ -13,18 +13,41 @@ log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [watchdog] $*" >> "$LOG"; }
 # --- single instance ------------------------------------------------------
 # Any starter can call this script (lockdown.sh, the app, a manual run). Without
 # this guard a second instance overwrites the pidfile and orphans the first
-# loop, so duplicates accumulate - that is exactly how three piled up. Check the
-# pidfile, then confirm the pid is alive AND really is this script, so a
-# recycled pid cannot block a legitimate start.
-if [ -f "$WPID" ]; then
-  OLD=$(cat "$WPID" 2>/dev/null)
-  if [ -n "$OLD" ] && [ -d "/proc/$OLD" ]; then
-    if tr '\0' ' ' < "/proc/$OLD/cmdline" 2>/dev/null | grep -q 'watchdog\.sh'; then
-      log "another watchdog is already running (pid $OLD) - exiting"
-      exit 0
+# loop, so duplicates accumulate - that is exactly how three piled up.
+#
+# A plain test-then-write is not enough: two starters racing at boot both read the pidfile
+# as absent at the same instant, both decide they are the one, and both loop. mkdir is
+# atomic, so the lock is a directory.
+#
+# Taking over a STALE lock has to be atomic too, and rm -rf followed by mkdir is not: two
+# starters that both find the holder dead will both remove, and both can then create. That
+# produced a fresh pair of duplicate watchdogs after a reboot. `mv` of a directory is a
+# single atomic rename and only one process can win it, so the stale lock is renamed away
+# first and the loser backs off.
+LOCK="$WPID.lock"
+acquired=0
+if mkdir "$LOCK" 2>/dev/null; then
+  acquired=1
+else
+  OLD=$(cat "$LOCK/pid" 2>/dev/null)
+  [ -n "$OLD" ] || OLD=$(cat "$WPID" 2>/dev/null)
+  if [ -n "$OLD" ] && [ -d "/proc/$OLD" ] && \
+     tr '\0' ' ' 2>/dev/null < "/proc/$OLD/cmdline" | grep -q 'watchdog\.sh'; then
+    log "another watchdog is already running (pid $OLD) - exiting"
+    exit 0
+  fi
+  # Holder is gone. Exactly one starter wins the rename; the rest stand down.
+  # A stale lock must never leave the phone with no watchdog, so the winner goes on
+  # to create a fresh one.
+  if mv "$LOCK" "$LOCK.stale.$$" 2>/dev/null; then
+    rm -rf "$LOCK.stale.$$" 2>/dev/null
+    if mkdir "$LOCK" 2>/dev/null; then
+      acquired=1
     fi
   fi
 fi
+[ "$acquired" = "1" ] || { log "lost the race for the watchdog lock - exiting"; exit 0; }
+echo $$ > "$LOCK/pid" 2>/dev/null
 
 echo $$ > "$WPID"
 log "watchdog v2 started (pid $$)"
@@ -77,11 +100,17 @@ while true; do
   fi
 
   # Debian sshd must stay reachable - restart it if it died.
+  #
+  # Test the PROCESS, not the socket. A LISTEN socket can outlive its process (an inherited
+  # fd keeps it open), and then 1304 looks served while ssh is refused on loopback and on
+  # the LAN. Both this check and debian-start.sh's own used the socket, so a dead sshd
+  # satisfied both and neither ever repaired it - the failure was completely silent, with
+  # only a stale port to show for it. Measured on hardware, not theorised.
   if [ -f /data/local/tmp/debian-start.sh ]; then
-    if ! (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ':1304'; then
-      log "debian sshd not listening on 1304 -> restarting"
+    if ! pgrep -f 'sshd -p 1304' >/dev/null 2>&1; then
+      log "debian sshd not running on 1304 -> restarting"
       sh /data/local/tmp/debian-start.sh >> "$LOG" 2>&1
-      if (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ':1304'; then
+      if pgrep -f 'sshd -p 1304' >/dev/null 2>&1; then
         log "debian sshd restored"
       else
         log "debian sshd restart FAILED"

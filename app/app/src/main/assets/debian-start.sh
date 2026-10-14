@@ -79,12 +79,32 @@ exec /usr/sbin/sshd -p 1304 -D
 EOS
 chmod 755 "$R/usr/local/bin/sshd-ns.sh"
 
-if (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ':1304'; then
-  say "sshd: already listening"
+# Ask whether sshd is RUNNING, not whether something is listening on the port.
+#
+# Checking the socket is a trap. A LISTEN socket can outlive its process - an inherited
+# file descriptor keeps it open - and then the port looks served while nothing is behind
+# it. Both this script and the watchdog used the socket test, so a dead sshd satisfied
+# both of them and nothing ever restarted it: the handset sat with 1304 listening, ssh
+# refused on loopback and on the LAN, and no log line anywhere. Measured, not theorised.
+#
+# And because the stale socket still holds the port, a naive restart cannot bind - so the
+# holder has to be cleared first.
+sshd_alive() {
+  pgrep -f 'sshd -p 1304' >/dev/null 2>&1
+}
+
+if sshd_alive; then
+  say "sshd: already running"
 else
+  # Clear any stale listener so the new one can bind.
+  for p in $(ss -ltnp 2>/dev/null | grep ':1304' | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+    [ "$p" = "$$" ] && continue
+    say "sshd: clearing stale listener held by pid $p"
+    kill -9 "$p" 2>/dev/null
+  done
   setsid chroot "$R" /usr/bin/unshare -u /usr/local/bin/sshd-ns.sh >> "$LOG" 2>&1 < /dev/null &
   sleep 3
-  if (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ':1304'; then
+  if sshd_alive; then
     say "sshd: started as $(cat "$R/etc/hostname" 2>/dev/null)"
   else
     say "sshd: FAILED to start"
@@ -121,9 +141,18 @@ fi
 # Kept because it is the only record of who logged in, and it is what you read
 # when SSH stops working. sshguard used to consume this file; it is no longer
 # run at all (see the note below).
+#
+# Believe the pidfile before pgrep. rsyslogd takes a moment to appear after it is
+# launched, and this script runs on every root flow, so a bare pgrep finds nothing
+# during that window and starts another one - which then dies because the first owns
+# the pidfile. On the handset that produced sixty "run failed with error -3000" lines
+# per boot. The watchdog had the same bug; it is fixed the same way there.
 if [ -x "$R/usr/sbin/rsyslogd" ]; then
-  if pgrep -x rsyslogd >/dev/null 2>&1; then
-    say "rsyslog: already running"
+  RPID=$(cat "$R/run/rsyslogd.pid" 2>/dev/null)
+  if [ -n "$RPID" ] && [ -d "/proc/$RPID" ]; then
+    say "rsyslog: already running (pid $RPID)"
+  elif pgrep -x rsyslogd >/dev/null 2>&1; then
+    say "rsyslog: already running (pid $(pgrep -x rsyslogd | head -1))"
   else
     setsid chroot "$R" /usr/sbin/rsyslogd -n >> "$LOG" 2>&1 < /dev/null &
     sleep 3
@@ -162,8 +191,13 @@ if [ -x "$R/usr/sbin/chpasswd" ] || [ -x "$R/usr/bin/chpasswd" ]; then
 fi
 
 # verify
-if (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":1304"; then
-  say "RESULT: debian sshd listening on 1304"
+# Report the PROCESS, not the socket. A stale LISTEN socket is exactly the failure this
+# script's own start check used to miss, so reporting "listening on 1304" from the socket
+# alone is how a dead sshd looked healthy.
+if sshd_alive; then
+  say "RESULT: debian sshd running on 1304 (pid $(pgrep -f 'sshd -p 1304' | head -1))"
+elif (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":1304"; then
+  say "RESULT: 1304 is listening but no sshd process - stale socket, ssh will refuse"
 else
-  say "RESULT: sshd NOT listening"
+  say "RESULT: sshd NOT running"
 fi

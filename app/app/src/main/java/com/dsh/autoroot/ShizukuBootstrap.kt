@@ -36,7 +36,25 @@ import java.util.concurrent.TimeUnit
 object ShizukuBootstrap {
 
     private const val SHIZUKU_PKG = "moe.shizuku.privileged.api"
-    private const val STARTER = "moe.shizuku.starter.ServiceStarter"
+
+    /**
+     * The classic adb-over-TCP port, and the only thing here that survives a reboot.
+     *
+     * Wireless debugging is a framework feature. Its flag lives in Settings.Global and the
+     * listener behind it is started by the Settings UI; writing the flag with `settings
+     * put` does not create the listener. Measured on this handset: with the cable out and
+     * the phone freshly rebooted, `ping` answered but every port was closed, including
+     * 1304 - so the app could never reach a shell and nothing downstream could start. The
+     * very first reboot also came back with adb_wifi_enabled=0, so even the flag is not
+     * dependable.
+     *
+     * `persist.adb.tcp.port` is a *property*, not a setting. Once set it stays set, and
+     * adbd binds that port from boot with no UI, no toggle and no cable. The app's adb key
+     * is already in /data/misc/adb/adb_keys, so connecting is all that is needed. RootFlow
+     * sets the property whenever root is held, which leaves it in place for the next boot;
+     * this constant is what makes the boot after that work.
+     */
+    internal const val ADB_TCP_PORT = 5555
 
     data class Endpoint(val name: String, val host: String, val port: Int) {
         val address get() = "$host:$port"
@@ -131,14 +149,19 @@ object ShizukuBootstrap {
 
     /** A serial we can shell into, or null. */
     fun ready(ctx: Context): String? {
-        repeat(4) { attempt ->
+        repeat(5) { attempt ->
+            // Anything already connected: USB, or a TCP connect from an earlier pass.
             val devices = adb(ctx, "devices", timeoutSec = 25)
             devices.lineSequence()
                 .map { it.trim().split(Regex("\\s+")) }
                 .firstOrNull { it.size >= 2 && it[1] == "device" }
                 ?.let { return it[0] }
-            if (attempt < 3) {
+
+            if (attempt < 4) {
+                // Wireless debugging, when the framework is offering it.
                 findConnect(ctx)?.let { adb(ctx, "connect", it.address, timeoutSec = 15) }
+                // And the port that actually survives a reboot. See ADB_TCP_PORT.
+                adb(ctx, "connect", "127.0.0.1:$ADB_TCP_PORT", timeoutSec = 15)
                 Thread.sleep(2500)
             }
         }
@@ -175,17 +198,46 @@ object ShizukuBootstrap {
         val apk = adb(ctx, "-s", serial, "shell", "pm path $SHIZUKU_PKG", timeoutSec = 30)
             .substringAfter("package:", "").substringBefore('\n').trim()
         if (apk.isEmpty()) {
-            onStep("could not find the Shizuku APK for app_process")
+            onStep("could not find the Shizuku APK to start from")
             return false
         }
 
+        // Shizuku is started by a native helper, not by app_process.
+        //
+        // The starter ships inside the Shizuku APK as lib/arm64/libshizuku.so: an ELF
+        // executable wearing a .so name, because the native library directory is the one
+        // place Android lets an app put a file it can execute. That is the same trick this
+        // app uses for its own bundled adb. Shizuku's manager copies it out, chmods it and
+        // runs it with the APK path as its only argument - its log calls itself
+        // "shizuku_starter" and prints "use apk path from argv", then "switch cgroup",
+        // "switching mount namespace to init", and finally the server pid.
+        //
+        // The previous code here ran
+        //   CLASSPATH=$apk app_process /system/bin ... moe.shizuku.starter.ServiceStarter
+        // and that can never work. ServiceStarter is Shizuku's *UserService* helper for
+        // apps that want a binder of their own; it expects --token, --package, --class and
+        // --uid, and without them it dies with an NPE in createPackageContextAsUser after
+        // printing "starting service null/null". Verified on this handset rather than
+        // guessed: Shizuku stayed down, the binder never answered, and every boot ended at
+        // "Shizuku never came up; aborting".
+        //
+        // Both layouts are tried because the installed path uses lib/arm64 while the ZIP
+        // inside uses lib/arm64-v8a, and only the installed one is ever on disk.
         onStep("starting Shizuku")
+        val base = apk.substringBeforeLast('/')
         val out = adb(
             ctx, "-s", serial, "shell",
-            "CLASSPATH=$apk app_process /system/bin --nice-name=shizuku_server $STARTER --debug=false",
+            "L=''; " +
+                "for d in arm64 arm64-v8a; do " +
+                "if [ -f '$base/lib/'\"\$d\"'/libshizuku.so' ]; then L='$base/lib/'\"\$d\"'/libshizuku.so'; break; fi; " +
+                "done; " +
+                "if [ -z \"\$L\" ]; then echo 'no libshizuku.so in the Shizuku APK'; exit 2; fi; " +
+                "cp -f \"\$L\" /data/local/tmp/shizuku_starter && " +
+                "chmod 755 /data/local/tmp/shizuku_starter && " +
+                "/data/local/tmp/shizuku_starter '$apk'",
             timeoutSec = 60
         ).trim()
-        out.lineSequence().filter { it.isNotBlank() }.take(6).forEach { onStep("  $it") }
+        out.lineSequence().filter { it.isNotBlank() }.take(8).forEach { onStep("  $it") }
 
         repeat(10) {
             Thread.sleep(700)
